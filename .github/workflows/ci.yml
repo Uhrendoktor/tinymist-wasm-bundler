@@ -352,6 +352,8 @@ jobs:
         run: yarn install --frozen-lockfile --prefer-offline
       - name: Check formatting
         run: cargo fmt --check --all
+      - name: Test browser LSP file URI path decoding
+        run: cargo test -p tinymist-query --lib --locked browser_file_uri_paths_decode_percent_encoded_components
       - name: Test browser previewer selection and server path mapping
         run: yarn workspace tinymist test:unit run src/features/previewer-provider-selection.test.ts src/web/bridge-queue.test.ts src/server-path.test.ts
       - name: Test browser asset manifest, license and source helpers
