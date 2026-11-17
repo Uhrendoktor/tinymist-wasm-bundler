@@ -122,7 +122,10 @@ try {
     fail(`VSIX installation was not visible in the clean profile:\n${listed.stdout}\n${listed.stderr}`);
   }
   console.log(listed.stdout.trim());
-  const installedVersion = listed.stdout.match(/myriad-dreamin\\.tinymist@([^\\r\\n]+)/)?.[1];
+  const installedLine = listed.stdout.split(/\r?\n/).find((line) =>
+    line.startsWith("myriad-dreamin.tinymist@"),
+  );
+  const installedVersion = installedLine?.slice("myriad-dreamin.tinymist@".length).trim();
   if (!installedVersion) {
     fail(`Could not determine the installed Tinymist extension version from: ${listed.stdout}`);
   }
