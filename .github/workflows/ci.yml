@@ -287,6 +287,8 @@ jobs:
     name: Build and verify browser-only WASM VSIX
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    outputs:
+      vsix_ready: ${{ steps.vsix_ready.outputs.vsix_ready }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -318,6 +320,11 @@ jobs:
       - name: Build and package browser-only Tinymist with the local build script
         run: node scripts/build-browser.mjs
 
+      - name: Confirm the compiled VSIX is available
+        id: vsix_ready
+        run: |
+          test -s dist/tinymist-web-*.vsix
+          echo "vsix_ready=true" >> "$GITHUB_OUTPUT"
       - name: Upload browser-only VSIX for the Windows desktop test
         uses: actions/upload-artifact@v4
         with:
@@ -354,7 +361,7 @@ jobs:
         run: cargo test -p tinymist --no-default-features --features tinymist/system,tinymist/preview,tinymist/no-content-hint --locked -- --skip=e2e
 
   checks-wasm-windows-desktop:
-    if: ${{ startsWith(github.event.pull_request.head.ref || github.ref_name, 'wasm/') }}
+    if: ${{ always() && needs.checks-wasm-browser.outputs.vsix_ready == 'true' }}
     needs: [checks-wasm-browser]
     name: Install VSIX in offline VS Code Desktop (Windows)
     runs-on: windows-latest
