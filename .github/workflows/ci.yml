@@ -340,7 +340,7 @@ jobs:
             target/rustfmt-compiler.patch
           if-no-files-found: error
           retention-days: 7
-      - name: Upload browser-only VSIX for the Windows desktop test
+      - name: Upload browser-only VSIX for the Linux, Windows, and macOS desktop matrix
         uses: actions/upload-artifact@v4
         with:
           name: tinymist-browser-only-vsix
@@ -372,12 +372,28 @@ jobs:
             --headless=true \
             editors/vscode/e2e-workspaces/book
 
-  checks-wasm-windows-desktop:
+  checks-wasm-desktop:
     if: ${{ always() && needs.checks-wasm-browser.outputs.vsix_ready == 'true' }}
     needs: [checks-wasm-browser]
-    name: Install VSIX in offline VS Code Desktop (Windows)
-    runs-on: windows-latest
-    timeout-minutes: 35
+    name: Install VSIX in VS Code Desktop (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux
+            shell: bash
+            expect_offline: "false"
+          - runner: windows-latest
+            platform: windows
+            shell: pwsh
+            expect_offline: "true"
+          - runner: macos-latest
+            platform: macos
+            shell: bash
+            expect_offline: "false"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     env:
       TINYMIST_DESKTOP_TEST_VSCODE_VERSION: "1.114.0"
     steps:
@@ -386,6 +402,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install Linux virtual display
+        if: ${{ matrix.platform == 'linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
       - name: Install JavaScript test dependencies
         run: yarn install --frozen-lockfile --prefer-offline
       - name: Download the compiled browser-only VSIX
@@ -395,20 +420,43 @@ jobs:
           path: artifacts
       - name: Install local PDF rasterizer
         run: python -m pip install --disable-pip-version-check pymupdf
-      - name: Install VSIX in clean VS Code Desktop and test with egress blocked
+      - name: Install VSIX in clean VS Code Desktop and test (Windows)
+        if: ${{ matrix.platform == 'windows' }}
         shell: pwsh
+        env:
+          TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE: ${{ matrix.expect_offline }}
         run: |
           $vsix = Get-ChildItem artifacts -Filter *.vsix | Select-Object -First 1
           if (-not $vsix) { throw "The compiled browser-only VSIX artifact is missing." }
           node scripts/test-installed-browser-vsix.mjs $vsix.FullName
+      - name: Install VSIX in clean VS Code Desktop and test (Linux)
+        if: ${{ matrix.platform == 'linux' }}
+        shell: bash
+        env:
+          TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE: ${{ matrix.expect_offline }}
+        run: |
+          set -euo pipefail
+          vsix="$(find artifacts -maxdepth 1 -type f -name '*.vsix' -print -quit)"
+          test -n "$vsix"
+          xvfb-run --auto-servernum node scripts/test-installed-browser-vsix.mjs "$vsix"
+      - name: Install VSIX in clean VS Code Desktop and test (macOS)
+        if: ${{ matrix.platform == 'macos' }}
+        shell: bash
+        env:
+          TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE: ${{ matrix.expect_offline }}
+        run: |
+          set -euo pipefail
+          vsix="$(find artifacts -maxdepth 1 -type f -name '*.vsix' -print -quit)"
+          test -n "$vsix"
+          node scripts/test-installed-browser-vsix.mjs "$vsix"
       - name: Preserve VS Code logs, preview metrics, and exported PDF
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tinymist-windows-desktop-offline-test
+          name: tinymist-desktop-test-${{ matrix.platform }}
           path: |
-            ${{ runner.temp }}/tinymist-offline-vscode/user-data/logs
-            ${{ runner.temp }}/tinymist-offline-vscode/workspace/tinymist-offline-test-report.json
-            ${{ runner.temp }}/tinymist-offline-vscode/workspace/tinymist-offline-output.pdf
+            ${{ runner.temp }}/tinymist-desktop-vscode/user-data/logs
+            ${{ runner.temp }}/tinymist-desktop-vscode/workspace/tinymist-desktop-test-report.json
+            ${{ runner.temp }}/tinymist-desktop-vscode/workspace/tinymist-desktop-output.pdf
           if-no-files-found: ignore
           retention-days: 7
