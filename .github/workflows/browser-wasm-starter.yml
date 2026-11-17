@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: browser-wasm-starter-release-v11
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build-and-release:
@@ -99,7 +99,18 @@ jobs:
           node scripts/link-docs.mjs
 
       - name: Build the browser VSIX and refresh the asset lock
-        run: node scripts/build-browser.mjs --update-lock
+        run: node scripts/build-browser.mjs
+
+      - name: Preserve the verified starter bundle as a recovery artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-wasm-starter-build
+          path: |
+            dist/tinymist-web-*.vsix
+            wasm-assets.toml
+            wasm-assets.lock.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Commit generated README and reproducible asset lock
         id: save-generated
@@ -155,15 +166,20 @@ jobs:
               -f target_commitish="$release_ref" \
               -f name="$title" \
               -f body="$(cat "$RUNNER_TEMP/release-notes.md")" \
-              -F draft=false \
+              -F draft=true \
               -F prerelease=false \
-              -f make_latest=true >/dev/null
+              -f make_latest=false >/dev/null
           fi
 
           gh release upload "$tag" "$vsix" "${vsix}.sha256" \
             dist/wasm-assets.toml dist/wasm-assets.lock.json \
             --repo "$GITHUB_REPOSITORY" --clobber
 
+          release_id="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json databaseId --jq .databaseId)"
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+            -F draft=false \
+            -F prerelease=false \
+            -f make_latest=true >/dev/null
           release_url="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
           echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
           echo "Published $release_url"
