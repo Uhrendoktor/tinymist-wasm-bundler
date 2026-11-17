@@ -1,0 +1,168 @@
+name: Browser WASM starter release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/browser-wasm-starter.yml
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  deployments: write
+
+concurrency:
+  group: browser-wasm-starter-release
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      RUSTFLAGS: "-Dwarnings"
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove failed GitHub Pages deployments and runs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          failed_runs="$RUNNER_TEMP/failed-gh-pages-runs.txt"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs?status=failure&per_page=100" \
+            --jq '.workflow_runs[] | select(.path == ".github/workflows/gh-pages.yml") | .id' \
+            > "$failed_runs"
+          while IFS= read -r run_id; do
+            [[ -n "$run_id" ]] || continue
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"
+            echo "Deleted failed GitHub Pages workflow run ${run_id}"
+          done < "$failed_runs"
+
+          failed_deployments="$RUNNER_TEMP/failed-pages-deployments.txt"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/deployments?environment=github-pages&per_page=100" \
+            --jq '.[].id' > "$failed_deployments"
+          while IFS= read -r deployment_id; do
+            [[ -n "$deployment_id" ]] || continue
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses?per_page=1" \
+              --jq '.[0].state // empty')"
+            case "$state" in
+              failure|error)
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}/statuses" \
+                  -f state=inactive \
+                  -f description="Removing failed GitHub Pages deployment."
+                gh api --method DELETE "repos/${GITHUB_REPOSITORY}/deployments/${deployment_id}"
+                echo "Deleted failed GitHub Pages deployment ${deployment_id}"
+                ;;
+              *)
+                echo "Keeping GitHub Pages deployment ${deployment_id} (latest state: ${state:-unknown})"
+                ;;
+            esac
+          done < "$failed_deployments"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: wasm32-unknown-unknown
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: yarn
+
+      - name: Install pinned browser build tools
+        run: bash scripts/ensure-wasm-tools.sh
+
+      - name: Install JavaScript dependencies and test the manifest parser
+        run: |
+          yarn install --frozen-lockfile --prefer-offline
+          yarn test:wasm-assets
+
+      - name: Generate the README from its Typst source
+        run: |
+          yarn build:typlite
+          node scripts/link-docs.mjs
+
+      - name: Build the browser VSIX and refresh the asset lock
+        run: node scripts/build-browser.mjs --update-lock
+
+      - name: Commit generated README and reproducible asset lock
+        id: save-generated
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md wasm-assets.lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m "build: refresh browser starter README and asset lock"
+            git push origin HEAD:main
+          fi
+          echo "release_ref=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the browser starter GitHub Release
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./editors/vscode/package.json').version")"
+          vsix="dist/tinymist-web-${version}.vsix"
+          test -s "$vsix"
+
+          release_ref="$(git rev-parse HEAD)"
+          tag="browser-wasm-starter-v${version}-${release_ref:0:12}"
+          title="Tinymist Browser WASM Starter v${version}"
+
+          sha256sum "$vsix" > "${vsix}.sha256"
+          cp wasm-assets.toml dist/wasm-assets.toml
+          cp wasm-assets.lock.json dist/wasm-assets.lock.json
+
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          A ready-to-use, browser-only Tinymist VSIX with a compact starter set of Typst packages and fonts.
+
+          **Included packages:** CeTZ, Fletcher, Lilaq, Codly (and its language definitions), CTheorems, Glossarium, Showybox, Touying, Kalt (and Sertyp), Physica, and Unify.
+
+          **Extra fonts:** Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included as usual.
+
+          Download `tinymist-web-${version}.vsix` and install it in VS Code with **Install from VSIX...**. The attached manifest and lock file document the exact asset selection and checksums.
+
+          This is a starter configuration, not a fixed bundle. Edit `wasm-assets.toml` to add or remove packages and fonts, then build a custom VSIX at any time with `node scripts/build-browser.mjs --update-lock`. See the repository README for the full instructions.
+
+          **Source commit:** ${release_ref}  
+          **VSIX SHA-256:** $(cut -d ' ' -f 1 "${vsix}.sha256")
+          EOF
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists; refreshing its build assets."
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$tag" \
+              -f target_commitish="$release_ref" \
+              -f name="$title" \
+              -f body="$(cat "$RUNNER_TEMP/release-notes.md")" \
+              -f draft=false \
+              -f prerelease=false \
+              -f make_latest=true >/dev/null
+          fi
+
+          gh release upload "$tag" "$vsix" "${vsix}.sha256" \
+            dist/wasm-assets.toml dist/wasm-assets.lock.json \
+            --repo "$GITHUB_REPOSITORY" --clobber
+
+          release_url="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq .url)"
+          echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
+          echo "Published $release_url"
+          {
+            echo "### Browser WASM starter release"
+            echo "Published: [$tag]($release_url)"
+            echo ""
+            echo "VSIX: `$vsix`"
+          } >> "$GITHUB_STEP_SUMMARY"

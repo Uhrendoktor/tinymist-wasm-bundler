@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+  pull-requests: read
+  issues: write
+
 jobs:
   auto-tag:
     runs-on: ubuntu-latest
@@ -13,7 +18,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        token: ${{ secrets.REPO_TOKEN }}
         fetch-depth: 0
     
     - name: Get merged PR info
@@ -32,7 +36,7 @@ jobs:
           echo "No merged PR found for this commit"
         fi
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ github.token }}
     
     - name: Check for tag directive in merged PR
       if: steps.get-pr.outputs.pr_number != ''
@@ -109,7 +113,7 @@ jobs:
       if: steps.check-tag.outputs.tag_found == 'true' && steps.check-existing-tag.outputs.tag_exists == 'false'
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ github.token }}
         script: |
           const tagVersion = '${{ steps.check-tag.outputs.tag_version }}';
           const prNumber = '${{ steps.get-pr.outputs.pr_number }}';
@@ -131,7 +135,7 @@ jobs:
       if: steps.check-tag.outputs.tag_found == 'true' && steps.check-existing-tag.outputs.tag_exists == 'true'
       uses: actions/github-script@v6
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
+        github-token: ${{ github.token }}
         script: |
           const tagVersion = '${{ steps.check-tag.outputs.tag_version }}';
           const prNumber = '${{ steps.get-pr.outputs.pr_number }}';

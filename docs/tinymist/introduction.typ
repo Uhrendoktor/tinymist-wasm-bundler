@@ -32,6 +32,21 @@ The WASM module cannot make network requests or access the host filesystem direc
 
 To use the extension on a machine without package or font downloads, build the VSIX on a machine with the required tools and transfer it for local installation. The bundled assets need no runtime downloads.
 
+== Quick start: prebuilt browser starter
+
+The easiest way to try the browser build is to download the prebuilt `tinymist-web-<version>.vsix` from the #link("https://github.com/Uhrendoktor/tinymist-wasm-bundler/releases/latest")[latest browser starter release]. Install that VSIX in Visual Studio Code with the `Install from VSIX...` command described below. The release is ready to use without first running a custom build.
+
+The starter bundle is deliberately compact while covering common Typst workflows:
+
+- Diagrams and charts: CeTZ, Fletcher, and Lilaq.
+- Code blocks: Codly and its language definitions.
+- Writing and structure: Glossarium, CTheorems, and Showybox.
+- Technical and scientific documents: Kalt (with its Sertyp dependency), Physica, and Unify.
+- Presentations: Touying.
+- Extra fonts: Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included automatically.
+
+Treat this as a useful starting point, not a fixed set. You can add or remove packages and fonts in #link("https://github.com/Uhrendoktor/tinymist-wasm-bundler/blob/main/wasm-assets.toml")[`wasm-assets.toml`] and build your own VSIX whenever you need. The customization and local build steps below work with your edited manifest; you do not need a fork or a special release to make a custom bundle.
+
 == Customize bundled packages and fonts
 
 The default package list is in `wasm-assets.toml`. Start by copying it:

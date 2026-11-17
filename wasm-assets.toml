@@ -1,6 +1,7 @@
-# Typst packages are selected by their actual names below.
-# Use one version, a list of versions, "latest", a local path, or a Git source.
-# Built-in Typst fonts are embedded by the Tinymist web Cargo feature; no extra font entry is needed for them.
+# A compact, broadly useful starter set for browser-only Typst projects.
+# Add or remove entries to fit your own projects; the lock is regenerated during
+# the starter release build and should be committed with the manifest.
+# Typst's built-in fonts are embedded by the Tinymist web Cargo feature.
 
 [package]
 name = "tinymist-browser-assets"
@@ -17,34 +18,55 @@ max-package-bytes = 67108864
 max-font-bytes = 33554432
 
 [packages]
-cetz-plot = "0.1.4"
+# Diagrams and plots. The older CeTZ versions satisfy package dependencies.
 cetz = ["0.3.4", "0.5.2", "0.5.3"]
+fletcher = "0.5.8"
+lilaq = "0.6.0"
+
+# Code blocks and language definitions.
 codly-languages = "0.1.10"
 codly = "2.0.0"
+
+# Writing, research, and presentation helpers.
 ctheorems = "2.0.0"
-elembic = "1.1.1"
-fletcher = "0.5.8"
 glossarium = "0.5.10"
-hydra = "0.6.3"
-kalt = "0.1.1"
-lilaq = "0.6.0"
-lovelace = "0.3.1"
-oxifmt = ["0.2.1", "1.0.0"]
-physica = "0.9.8"
-quill = "0.8.0"
-sertyp = "0.1.5"
 showybox = "2.0.4"
-tidy = "0.4.1"
-tiptoe = "0.4.0"
 touying = "0.8.0"
+
+# Scientific and engineering notation. Kalt requires sertyp.
+kalt = "0.1.1"
+sertyp = "0.1.5"
+physica = "0.9.8"
 unify = "0.8.1"
-uniwarn = "0.1.1"
-zero = ["0.6.1", "0.7.1"]
+
+# Inter: a general-purpose sans-serif family (variable regular and italic).
+[package.metadata.tinymist.fonts.Inter]
+file = "InterVariable.ttf"
+url = "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
+license = "OFL-1.1"
+license-url = "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/OFL.txt"
+
+[package.metadata.tinymist.fonts.InterItalic]
+file = "InterItalicVariable.ttf"
+url = "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter-Italic%5Bopsz%2Cwght%5D.ttf"
+license = "OFL-1.1"
+license-url = "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/OFL.txt"
+
+# JetBrains Mono: a monospaced family for source code (variable regular and italic).
+[package.metadata.tinymist.fonts.JetBrainsMono]
+file = "JetBrainsMonoVariable.ttf"
+url = "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono%5Bwght%5D.ttf"
+license = "OFL-1.1"
+license-url = "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/OFL.txt"
+
+[package.metadata.tinymist.fonts.JetBrainsMonoItalic]
+file = "JetBrainsMonoItalicVariable.ttf"
+url = "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/JetBrainsMono-Italic%5Bwght%5D.ttf"
+license = "OFL-1.1"
+license-url = "https://raw.githubusercontent.com/google/fonts/main/ofl/jetbrainsmono/OFL.txt"
 
 # Example local package:
 # my-local-package = { path = "../my-local-package", namespace = "local" }
 
 # Example Git package (pin rev to a commit for reproducible source):
 # my-git-package = { git = "https://github.com/example/my-git-package.git", rev = "0123456789abcdef0123456789abcdef01234567", subdirectory = "typst-package", namespace = "local" }
-
-# Add extra fonts only under [package.metadata.tinymist.fonts.<name>].
