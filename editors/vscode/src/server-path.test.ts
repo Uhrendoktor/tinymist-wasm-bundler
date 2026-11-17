@@ -48,6 +48,12 @@ test("matches Windows file paths independent of separator and casing", () => {
   expect(serverPathsEqual(uri, "c:\\users\\alice\\main.typ", false)).toBe(true);
 });
 
+test("keeps POSIX file paths case-sensitive", () => {
+  const uri = mockUri("file", "/home/alice/Main.typ", "", "/home/alice/Main.typ");
+
+  expect(serverPathsEqual(uri, "/home/alice/main.typ", true)).toBe(false);
+});
+
 test("maps WASM paths back to the most specific matching virtual workspace URI", () => {
   const root = mockUri("vscode-vfs", "/repo", "github");
   const nested = mockUri("vscode-vfs", "/repo/packages", "github");

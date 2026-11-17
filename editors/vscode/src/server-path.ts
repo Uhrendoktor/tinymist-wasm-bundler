@@ -25,7 +25,7 @@ export function serverPathsEqual(
 ): boolean {
   const resourcePath = normalizePath(serverPathForUri(uri, isWeb));
   const requestedPath = normalizePath(serverPath);
-  if (uri.scheme === "file") {
+  if (isWindowsFileUri(uri)) {
     return resourcePath.toLowerCase() === requestedPath.toLowerCase();
   }
   return resourcePath === requestedPath;
@@ -48,7 +48,7 @@ export function uriForServerPath(
 
   const folders = vscode.workspace.workspaceFolders ?? [];
   const matchingFolders = folders.filter(({ uri }) =>
-    isWithinFolder(serverPath, uri.path, uri.scheme === "file"),
+    isWithinFolder(serverPath, uri.path, isWindowsFileUri(uri)),
   );
   const sourceProviderFolders = sourceUri
     ? matchingFolders.filter(
@@ -66,6 +66,13 @@ export function uriForServerPath(
   }
 
   throw new Error(`No workspace filesystem provider owns server path: ${serverPath}`);
+}
+
+function isWindowsFileUri(uri: vscode.Uri): boolean {
+  return (
+    uri.scheme === "file" &&
+    (/^\\/[a-z]:\\//i.test(uri.path) || uri.fsPath.includes("\\\\"))
+  );
 }
 
 function normalizePath(value: string): string {
