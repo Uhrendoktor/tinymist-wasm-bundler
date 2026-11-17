@@ -12,6 +12,7 @@ import type { IContext } from "../context";
 import { l10nMsg } from "../l10n";
 import { type ExportResponse, tinymist } from "../lsp";
 import { extensionState } from "../state";
+import { serverPathForUri, uriForServerPath } from "../server-path";
 
 /// These are names of the export functions in the LSP client, e.g. `exportPdf`, `exportHtml`.
 export type ExportKind =
@@ -317,7 +318,7 @@ export async function commandExport(
   }
 
   const response = await tinymist[`export${kind}`](
-    sourceUri.fsPath,
+    serverPathForUri(sourceUri, extensionState.features.web),
     opts,
     extensionState.features.web ? { ...actionOpts, write: false, open: false } : actionOpts,
   );
@@ -374,53 +375,11 @@ function withPageSuffix(filePath: string, page: number): string {
  * schemes such as vscode-vfs or vscode-test-web instead of file:.
  */
 function workspaceUriForExportPath(sourceUri: vscode.Uri, serverPath: string): vscode.Uri {
-  if (sourceUri.scheme === "file") {
-    return vscode.Uri.file(serverPath);
-  }
-
-  const isWithinFolder = (candidate: string, folderPath: string) => {
-    let root = folderPath || "/";
-    while (root.length > 1 && root.endsWith("/")) {
-      root = root.slice(0, -1);
-    }
-    return candidate === root || candidate.startsWith(root === "/" ? "/" : `${root}/`);
-  };
-
-  const folder = (vscode.workspace.workspaceFolders ?? [])
-    .filter(
-      ({ uri }) =>
-        uri.scheme === sourceUri.scheme &&
-        uri.authority === sourceUri.authority &&
-        isWithinFolder(sourceUri.path, uri.path) &&
-        isWithinFolder(serverPath, uri.path),
-    )
-    .sort((left, right) => right.uri.path.length - left.uri.path.length)[0];
-
-  if (folder) {
-    return folder.uri.with({ path: serverPath, query: "", fragment: "" });
-  }
-
-  // Preserve the source provider as a safe fallback; never silently switch a
-  // virtual workspace export to an unrelated file: provider.
-  return sourceUri.with({ path: serverPath, query: "", fragment: "" });
+  return uriForServerPath(serverPath, true, sourceUri);
 }
 
 function workspaceUriForServerPath(serverPath: string): vscode.Uri {
-  const isWithinFolder = (candidate: string, folderPath: string) => {
-    let root = folderPath || "/";
-    while (root.length > 1 && root.endsWith("/")) {
-      root = root.slice(0, -1);
-    }
-    return candidate === root || candidate.startsWith(root === "/" ? "/" : `${root}/`);
-  };
-
-  const folder = (vscode.workspace.workspaceFolders ?? [])
-    .filter(({ uri }) => isWithinFolder(serverPath, uri.path))
-    .sort((left, right) => right.uri.path.length - left.uri.path.length)[0];
-  if (!folder) {
-    throw new Error(`No workspace filesystem provider owns automatic export source path: ${serverPath}`);
-  }
-  return folder.uri.with({ path: serverPath, query: "", fragment: "" });
+  return uriForServerPath(serverPath, true);
 }
 
 async function persistAutomaticBrowserExport(event: BrowserExportTaskResult): Promise<void> {
