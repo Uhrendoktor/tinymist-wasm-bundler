@@ -77,37 +77,14 @@ try {
   }
   console.log(`VS Code executable: ${vscodeExecutablePath}`);
 
-  const [cliPath, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(vscodeExecutablePath);
-  console.log(`Installing compiled VSIX locally: ${vsixPath}`);
-  run(cliPath, [
-    ...cliArgs,
-    "--user-data-dir",
-    userDataDir,
-    "--extensions-dir",
-    extensionsDir,
-    "--install-extension",
-    vsixPath,
-    "--force",
-  ]);
+  const [cliPath, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(
+    vscodeExecutablePath,
+    { reuseMachineInstall: true },
+  );
 
-  const listed = spawnSync(cliPath, [
-    ...cliArgs,
-    "--user-data-dir",
-    userDataDir,
-    "--extensions-dir",
-    extensionsDir,
-    "--list-extensions",
-    "--show-versions",
-  ], { encoding: "utf8" });
-  if (listed.error) throw listed.error;
-  if (listed.status !== 0 || !listed.stdout.includes("myriad-dreamin.tinymist@")) {
-    fail(`VSIX installation was not visible in the clean profile:\n${listed.stdout}\n${listed.stderr}`);
-  }
-  console.log(listed.stdout.trim());
-
-  // Block public and intranet egress for every VS Code process. Loopback remains
-  // available for the extension's local preview transport. The GitHub Actions
-  // runner (which is a different executable) retains its connection to GitHub.
+  // Block public and intranet egress for every VS Code process before the
+  // VSIX is loaded. The GitHub Actions runner is a different executable and
+  // retains its connection for artifact reporting; loopback remains usable.
   const escapedCodePath = vscodeExecutablePath.replace(/'/g, "''");
   const escapedRule = firewallRule.replace(/'/g, "''");
   runPowerShell(`
@@ -118,6 +95,33 @@ try {
     Write-Output 'VS Code outbound Internet/Intranet access blocked; loopback preview traffic remains available.'
   `);
   firewallInstalled = true;
+
+  console.log(`Installing compiled VSIX locally with egress blocked: ${vsixPath}`);
+  run(cliPath, [
+    ...cliArgs,
+    "--user-data-dir",
+    userDataDir,
+    "--extensions-dir",
+    extensionsDir,
+    "--install-extension",
+    vsixPath,
+    "--force",
+  ], { shell: process.platform === "win32" });
+
+  const listed = spawnSync(cliPath, [
+    ...cliArgs,
+    "--user-data-dir",
+    userDataDir,
+    "--extensions-dir",
+    extensionsDir,
+    "--list-extensions",
+    "--show-versions",
+  ], { encoding: "utf8", shell: process.platform === "win32" });
+  if (listed.error) throw listed.error;
+  if (listed.status !== 0 || !listed.stdout.includes("myriad-dreamin.tinymist@")) {
+    fail(`VSIX installation was not visible in the clean profile:\n${listed.stdout}\n${listed.stderr}`);
+  }
+  console.log(listed.stdout.trim());
 
   console.log("Launching desktop Extension Host with the installed VSIX (not extension-development mode).");
   testExitCode = await runTests({
