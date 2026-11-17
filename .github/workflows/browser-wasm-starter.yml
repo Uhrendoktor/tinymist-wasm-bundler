@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - .github/workflows/browser-wasm-starter.yml
+      - wasm-assets.toml
+      - docs/tinymist/introduction.typ
   workflow_dispatch:
 
 permissions:
@@ -14,7 +16,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: browser-wasm-starter-release-v4
+  group: browser-wasm-starter-release-v5
   cancel-in-progress: false
 
 jobs:
@@ -38,7 +40,7 @@ jobs:
 
           failed_runs="$RUNNER_TEMP/failed-gh-pages-runs.txt"
           gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs?status=failure&per_page=100" \
-            --jq '.workflow_runs[] | select(.path == ".github/workflows/gh-pages.yml") | .id' \
+            --jq --arg current_run "$GITHUB_RUN_ID" '.workflow_runs[] | select((.path == ".github/workflows/gh-pages.yml" or .path == ".github/workflows/browser-wasm-starter.yml") and ((.id | tostring) != $current_run)) | .id' \
             > "$failed_runs"
           while IFS= read -r run_id; do
             [[ -n "$run_id" ]] || continue
@@ -133,7 +135,7 @@ jobs:
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
           A ready-to-use, browser-only Tinymist VSIX with a compact starter set of Typst packages and fonts.
 
-          **Included packages:** CeTZ, Fletcher, Lilaq, Codly (and its language definitions), CTheorems, Glossarium, Showybox, Touying, Kalt (and Sertyp), Physica, and Unify.
+          **Included packages:** CeTZ (and Oxifmt), Fletcher, Lilaq, Codly (and its language definitions and Elembic helper), CTheorems, Glossarium, Showybox, Touying, Kalt (and Sertyp), Physica, and Unify.
 
           **Extra fonts:** Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included as usual.
 

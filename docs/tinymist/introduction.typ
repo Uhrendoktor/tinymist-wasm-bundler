@@ -43,7 +43,7 @@ The starter bundle is deliberately compact while covering common Typst workflows
 - Writing and structure: Glossarium, CTheorems, and Showybox.
 - Technical and scientific documents: Kalt (with its Sertyp dependency), Physica, and Unify.
 - Presentations: Touying.
-- Extra fonts: Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included automatically.
+- Extra fonts: Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included automatically. The bundle also includes the small helper packages these libraries need, such as Oxifmt, Elembic, and Sertyp.
 
 Treat this as a useful starting point, not a fixed set. You can add or remove packages and fonts in #link("https://github.com/Uhrendoktor/tinymist-wasm-bundler/blob/main/wasm-assets.toml")[`wasm-assets.toml`] and build your own VSIX whenever you need. The customization and local build steps below work with your edited manifest; you do not need a fork or a special release to make a custom bundle.
 
