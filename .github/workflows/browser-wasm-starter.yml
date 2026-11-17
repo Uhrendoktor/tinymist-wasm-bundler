@@ -14,7 +14,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: browser-wasm-starter-release-v2
+  group: browser-wasm-starter-release-v3
   cancel-in-progress: false
 
 jobs:
@@ -77,6 +77,11 @@ jobs:
         with:
           node-version: 24
           cache: yarn
+
+      - name: Install the Typst CLI used by generated documentation
+        uses: typst-community/setup-typst@v4
+        with:
+          typst-version: 0.15.1
 
       - name: Install pinned browser build tools
         run: bash scripts/ensure-wasm-tools.sh
