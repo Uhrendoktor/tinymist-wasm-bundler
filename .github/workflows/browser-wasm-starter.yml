@@ -16,7 +16,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: browser-wasm-starter-release-v10
+  group: browser-wasm-starter-release-v11
   cancel-in-progress: false
 
 jobs:
@@ -157,7 +157,7 @@ jobs:
               -f body="$(cat "$RUNNER_TEMP/release-notes.md")" \
               -F draft=false \
               -F prerelease=false \
-              -F make_latest=true >/dev/null
+              -f make_latest=true >/dev/null
           fi
 
           gh release upload "$tag" "$vsix" "${vsix}.sha256" \
