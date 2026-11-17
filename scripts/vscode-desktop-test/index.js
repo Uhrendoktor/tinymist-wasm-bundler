@@ -27,6 +27,10 @@ async function inspectPreviewState() {
 }
 
 async function verifyNetworkIsBlocked() {
+  if (process.env.TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE !== "true") {
+    console.log("Outbound network is not restricted on this runner; desktop functionality is still tested.");
+    return;
+  }
   assert.equal(typeof fetch, "function", "The desktop extension host does not expose fetch for the offline check.");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 7_000);
@@ -57,7 +61,7 @@ async function run() {
   await verifyNetworkIsBlocked();
 
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri;
-  assert(workspace, "VS Code did not open the offline test workspace.");
+  assert(workspace, "VS Code did not open the desktop test workspace.");
 
   // Browser-only extensions run in VS Code's LocalWebWorker extension host on
   // Desktop. They are intentionally not returned by getExtension() in this
@@ -67,15 +71,15 @@ async function run() {
     "#set page(width: 360pt, height: 240pt, margin: 20pt)",
     "#set text(fill: black, size: 12pt)",
     "#rect(width: 110pt, height: 38pt, fill: red)",
-    "= WINDOWS_OFFLINE_TINYMIST_TEST",
+    "= CROSS_PLATFORM_TINYMIST_DESKTOP_TEST",
     "First-page black text must appear next to the red rectangle.",
     "#pagebreak()",
-    "= WINDOWS_OFFLINE_TINYMIST_PAGEBREAK_SECOND_PAGE",
+    "= CROSS_PLATFORM_TINYMIST_PAGEBREAK_SECOND_PAGE",
     "Second-page content verifies that pagebreak creates a second page.",
     "#rect(width: 80pt, height: 25pt, fill: blue)",
     "",
   ].join("\n");
-  const sourceUri = vscode.Uri.joinPath(workspace, "offline-smoke.typ");
+  const sourceUri = vscode.Uri.joinPath(workspace, "desktop-smoke.typ");
   await vscode.workspace.fs.writeFile(sourceUri, new TextEncoder().encode(source));
   let document = await vscode.workspace.openTextDocument(sourceUri);
   if (document.languageId !== "typst") {
@@ -148,19 +152,22 @@ async function run() {
   assert.equal(new TextDecoder().decode(pdfBytes.subarray(0, 5)), "%PDF-",
     `PDF export did not write a valid PDF to ${pdfUri.toString()}`);
 
-  const pdfCopy = vscode.Uri.joinPath(workspace, "tinymist-offline-output.pdf");
+  const pdfCopy = vscode.Uri.joinPath(workspace, "tinymist-desktop-output.pdf");
   await vscode.workspace.fs.writeFile(pdfCopy, pdfBytes);
   const report = {
     vscodeVersion: vscode.version,
     uiKind: vscode.env.uiKind,
     extensionVersion,
+    hostPlatform: process.platform,
+    hostArchitecture: process.arch,
+    networkEgressBlocked: process.env.TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE === "true",
     taskId,
     preview: metrics,
     pdfBytes: pdfBytes.length,
     pdfUri: pdfUri.toString(),
   };
   await vscode.workspace.fs.writeFile(
-    vscode.Uri.joinPath(workspace, "tinymist-offline-test-report.json"),
+    vscode.Uri.joinPath(workspace, "tinymist-desktop-test-report.json"),
     new TextEncoder().encode(JSON.stringify(report, null, 2)),
   );
   console.log("Desktop VSIX preview and PDF export passed initial checks:", JSON.stringify(report));
