@@ -38,7 +38,7 @@ The easiest way to try the browser build is to download the prebuilt `tinymist-w
 
 The starter bundle is deliberately compact while covering common Typst workflows:
 
-- Diagrams and charts: CeTZ, Fletcher, and Lilaq.
+- Diagrams and charts: CeTZ (0.3.4 for Fletcher compatibility and 0.5.3 for current projects), Fletcher, and Lilaq.
 - Code blocks: Codly and its language definitions.
 - Writing and structure: Glossarium, CTheorems, and Showybox.
 - Technical and scientific documents: Kalt (with its Sertyp dependency), Physica, and Unify.

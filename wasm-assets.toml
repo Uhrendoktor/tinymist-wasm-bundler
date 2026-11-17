@@ -18,11 +18,11 @@ max-package-bytes = 67108864
 max-font-bytes = 33554432
 
 [packages]
-# Diagrams and plots. CeTZ 0.5.3 targets the current Typst 0.15 compiler.
-cetz = "0.5.3"
+# Diagrams and plots. Fletcher requires CeTZ 0.3.4; 0.5.3 targets current Typst.
+cetz = ["0.3.4", "0.5.3"]
 fletcher = "0.5.8"
 lilaq = "0.6.0"
-oxifmt = "1.0.0"
+oxifmt = ["0.2.1", "1.0.0"]
 
 # Code blocks and language definitions.
 codly-languages = "0.1.10"
