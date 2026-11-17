@@ -286,7 +286,7 @@ jobs:
     if: ${{ startsWith(github.event.pull_request.head.ref || github.ref_name, 'wasm/') }}
     name: Build and verify browser-only WASM VSIX
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -303,7 +303,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Ensure pinned build tools in persistent runner cache
+      - name: Install pinned WASM build tools
         run: bash scripts/ensure-wasm-tools.sh
       - name: Install JavaScript dependencies
         run: yarn install --frozen-lockfile --prefer-offline
@@ -349,7 +349,7 @@ jobs:
             --extensionTestsPath=target/tinymist-vscode-web-package/out/web-test-runner.js \
             --headless=true \
             editors/vscode/e2e-workspaces/book
-      - name: Run native Tinymist regression tests on the local runner
+      - name: Run native Tinymist regression tests on hosted Linux
         if: always()
         run: cargo test -p tinymist --no-default-features --features tinymist/system,tinymist/preview,tinymist/no-content-hint --locked -- --skip=e2e
 
