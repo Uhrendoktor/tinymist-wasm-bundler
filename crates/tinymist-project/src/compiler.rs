@@ -61,6 +61,32 @@ impl<F: CompilerFeat> Clone for CompiledArtifact<F> {
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+fn visible_frame_item_summary(frame: &typst::layout::Frame) -> (usize, usize) {
+    let mut visible_items = 0;
+    let mut glyphs = 0;
+
+    for (_, item) in frame.items() {
+        match item {
+            typst::layout::FrameItem::Text(text) => {
+                visible_items += 1;
+                glyphs += text.glyphs.len();
+            }
+            typst::layout::FrameItem::Shape(..) | typst::layout::FrameItem::Image(..) => {
+                visible_items += 1;
+            }
+            typst::layout::FrameItem::Group(group) => {
+                let (nested_items, nested_glyphs) = visible_frame_item_summary(&group.frame);
+                visible_items += nested_items;
+                glyphs += nested_glyphs;
+            }
+            typst::layout::FrameItem::Tag(..) | typst::layout::FrameItem::Link(..) => {}
+        }
+    }
+
+    (visible_items, glyphs)
+}
+
 impl<F: CompilerFeat> CompiledArtifact<F> {
     /// Returns the project id.
     pub fn id(&self) -> &ProjectInsId {
@@ -95,8 +121,38 @@ impl<F: CompilerFeat> CompiledArtifact<F> {
             graph.shared_compile().expect("paged").map(From::from)
         };
 
+        let diag = graph.shared_diagnostics().expect("diag");
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            let main_id = graph.world().main_id();
+            let source_bytes = main_id
+                .and_then(|main| graph.world().source(main).ok())
+                .map(|source| source.text().len());
+            let page_summary = match doc.as_ref() {
+                Some(TypstDocument::Paged(paged)) => Some(
+                    paged
+                        .pages()
+                        .iter()
+                        .map(|page| visible_frame_item_summary(&page.frame))
+                        .collect::<Vec<_>>(),
+                ),
+                Some(TypstDocument::Html(_)) | None => None,
+            };
+
+            log::info!(
+                "[browser-compile-frame-debug] project={:?} main={:?} source_bytes={:?} page_visible_items_and_glyphs={:?} errors={} warnings={}",
+                graph.snap.id,
+                main_id,
+                source_bytes,
+                page_summary,
+                diag.error_cnt(),
+                diag.warning_cnt(),
+            );
+        }
+
         CompiledArtifact {
-            diag: graph.shared_diagnostics().expect("diag"),
+            diag,
             graph,
             doc,
             deps: OnceLock::default(),
