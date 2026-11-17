@@ -106,8 +106,8 @@ fn url_to_file_path(uri: &Url) -> PathBuf {
 fn browser_url_path_to_path(path: &str) -> PathBuf {
     // Url::path() is percent-encoded. Decode it before using it as a VFS path,
     // matching the decoded Uri.path values passed by the VS Code extension.
-    let decoded = percent_encoding::percent_decode(path.as_bytes());
-    PathBuf::from(String::from_utf8_lossy(decoded.as_ref()).into_owned())
+    let decoded = percent_encoding::percent_decode(path.as_bytes()).decode_utf8_lossy();
+    PathBuf::from(decoded.into_owned())
 }
 
 #[cfg(target_arch = "wasm32")]
