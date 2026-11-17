@@ -16,7 +16,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: browser-wasm-starter-release-v7
+  group: browser-wasm-starter-release-v8
   cancel-in-progress: false
 
 jobs:
@@ -135,7 +135,7 @@ jobs:
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
           A ready-to-use, browser-only Tinymist VSIX with a compact starter set of Typst packages and fonts.
 
-          **Included packages:** CeTZ 0.3.4 and 0.5.3 (with both Oxifmt dependencies), Fletcher, Lilaq, Codly (and its language definitions and Elembic helper), CTheorems, Glossarium, Showybox, Touying, Kalt (and Sertyp), Physica, and Unify.
+          **Included packages:** CeTZ 0.3.4 and 0.5.3 (with both Oxifmt dependencies), Fletcher, Lilaq (and Zero), Codly (and its language definitions and Elembic helper), CTheorems, Glossarium, Showybox, Touying, Kalt (and Sertyp), Physica, and Unify.
 
           **Extra fonts:** Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included as usual.
 

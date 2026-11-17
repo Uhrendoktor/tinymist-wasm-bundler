@@ -23,6 +23,7 @@ cetz = ["0.3.4", "0.5.3"]
 fletcher = "0.5.8"
 lilaq = "0.6.0"
 oxifmt = ["0.2.1", "1.0.0"]
+zero = "0.6.1"
 
 # Code blocks and language definitions.
 codly-languages = "0.1.10"
