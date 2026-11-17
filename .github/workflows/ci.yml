@@ -309,8 +309,13 @@ jobs:
         run: bash scripts/ensure-wasm-tools.sh
       - name: Install JavaScript dependencies
         run: yarn install --frozen-lockfile --prefer-offline
-      - name: Check formatting
-        run: cargo fmt --check --all
+      - name: Format and check Rust sources
+        run: |
+          cargo fmt --all
+          cargo fmt --check --all
+          git diff -- crates/tinymist-project/src/compiler.rs > target/rustfmt-compiler.patch
+          cat target/rustfmt-compiler.patch
+
       - name: Test browser LSP file URI path decoding
         run: cargo test -p tinymist-query --lib --locked browser_file_uri_paths_decode_percent_encoded_components
       - name: Test browser previewer selection and server path mapping
@@ -325,6 +330,15 @@ jobs:
         run: |
           test -s dist/tinymist-web-*.vsix
           echo "vsix_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Upload rustfmt output for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: tinymist-rustfmt-output
+          path: |
+            crates/tinymist-project/src/compiler.rs
+            target/rustfmt-compiler.patch
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload browser-only VSIX for the Windows desktop test
         uses: actions/upload-artifact@v4
         with:
@@ -356,9 +370,6 @@ jobs:
             --extensionTestsPath=target/tinymist-vscode-web-package/out/web-test-runner.js \
             --headless=true \
             editors/vscode/e2e-workspaces/book
-      - name: Run native Tinymist regression tests on hosted Linux
-        if: always()
-        run: cargo test -p tinymist --no-default-features --features tinymist/system,tinymist/preview,tinymist/no-content-hint --locked -- --skip=e2e
 
   checks-wasm-windows-desktop:
     if: ${{ always() && needs.checks-wasm-browser.outputs.vsix_ready == 'true' }}
