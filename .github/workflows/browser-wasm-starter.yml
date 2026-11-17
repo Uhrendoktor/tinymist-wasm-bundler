@@ -14,7 +14,7 @@ permissions:
   deployments: write
 
 concurrency:
-  group: browser-wasm-starter-release-v3
+  group: browser-wasm-starter-release-v4
   cancel-in-progress: false
 
 jobs:
@@ -137,9 +137,9 @@ jobs:
 
           **Extra fonts:** Inter and JetBrains Mono, each with regular and italic variable faces. Typst's built-in fonts are included as usual.
 
-          Download `tinymist-web-${version}.vsix` and install it in VS Code with **Install from VSIX...**. The attached manifest and lock file document the exact asset selection and checksums.
+          Download \`tinymist-web-${version}.vsix\` and install it in VS Code with **Install from VSIX...**. The attached manifest and lock file document the exact asset selection and checksums.
 
-          This is a starter configuration, not a fixed bundle. Edit `wasm-assets.toml` to add or remove packages and fonts, then build a custom VSIX at any time with `node scripts/build-browser.mjs --update-lock`. See the repository README for the full instructions.
+          This is a starter configuration, not a fixed bundle. Edit \`wasm-assets.toml\` to add or remove packages and fonts, then build a custom VSIX at any time with \`node scripts/build-browser.mjs --update-lock\`. See the repository README for the full instructions.
 
           **Source commit:** ${release_ref}  
           **VSIX SHA-256:** $(cut -d ' ' -f 1 "${vsix}.sha256")
@@ -153,9 +153,9 @@ jobs:
               -f target_commitish="$release_ref" \
               -f name="$title" \
               -f body="$(cat "$RUNNER_TEMP/release-notes.md")" \
-              -f draft=false \
-              -f prerelease=false \
-              -f make_latest=true >/dev/null
+              -F draft=false \
+              -F prerelease=false \
+              -F make_latest=true >/dev/null
           fi
 
           gh release upload "$tag" "$vsix" "${vsix}.sha256" \
@@ -169,5 +169,5 @@ jobs:
             echo "### Browser WASM starter release"
             echo "Published: [$tag]($release_url)"
             echo ""
-            echo "VSIX: `$vsix`"
+            echo "VSIX: \`$vsix\`"
           } >> "$GITHUB_STEP_SUMMARY"
