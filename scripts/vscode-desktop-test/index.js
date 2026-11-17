@@ -50,31 +50,19 @@ async function run() {
     "This test must run in plain VS Code Desktop, not VS Code for the Web.",
   );
 
-  const extension = vscode.extensions.getExtension("myriad-dreamin.tinymist");
-  assert(extension, "The locally installed Tinymist VSIX is not loaded.");
-  assert(extension.packageJSON.browser, "The installed VSIX is missing its browser entry point.");
-  assert(!extension.packageJSON.main, "The installed browser-only VSIX unexpectedly contains a Node main entry.");
-  console.log(`Testing installed Tinymist VSIX ${extension.packageJSON.version} in VS Code Desktop.`);
+  const extensionVersion = process.env.TINYMIST_EXTENSION_VERSION;
+  assert(extensionVersion, "The runner did not identify the installed Tinymist VSIX version.");
+  console.log(`Testing installed browser-only Tinymist VSIX ${extensionVersion} in VS Code Desktop ${vscode.version}.`);
 
   await verifyNetworkIsBlocked();
-  await extension.activate();
-
-  await waitFor("Tinymist preview and diagnostic commands", async () => {
-    const commands = await vscode.commands.getCommands(true);
-    return commands.includes("tinymist.doInspectPreviewState") &&
-      commands.includes("tinymist.doInspectPreviewHtml") &&
-      commands.includes("typst-preview.preview");
-  });
-
-  const previewHtml = await vscode.commands.executeCommand("tinymist.doInspectPreviewHtml");
-  assert(previewHtml?.isString, "The active WASM server did not return its embedded preview HTML.");
-  for (const key of ["statePlaceholder", "documentReady", "frontendReady", "browserTransport", "assetsInline"]) {
-    assert(previewHtml[key], `The packaged preview HTML is missing ${key}: ${JSON.stringify(previewHtml)}`);
-  }
 
   const workspace = vscode.workspace.workspaceFolders?.[0]?.uri;
   assert(workspace, "VS Code did not open the offline test workspace.");
 
+  // Browser-only extensions run in VS Code's LocalWebWorker extension host on
+  // Desktop. They are intentionally not returned by getExtension() in this
+  // Node extension-test host. Opening a Typst document triggers the installed
+  // extension's onLanguage:typst activation event in the WebWorker host.
   const source = [
     "#set page(width: 360pt, height: 240pt, margin: 20pt)",
     "#set text(fill: black, size: 12pt)",
@@ -85,8 +73,32 @@ async function run() {
   ].join("\n");
   const sourceUri = vscode.Uri.joinPath(workspace, "offline-smoke.typ");
   await vscode.workspace.fs.writeFile(sourceUri, new TextEncoder().encode(source));
-  const document = await vscode.workspace.openTextDocument(sourceUri);
+  let document = await vscode.workspace.openTextDocument(sourceUri);
+  if (document.languageId !== "typst") {
+    document = await vscode.languages.setTextDocumentLanguage(document, "typst");
+  }
+  assert.equal(document.languageId, "typst", "VS Code did not recognize the Typst test document.");
   await vscode.window.showTextDocument(document);
+
+  const requiredCommands = await waitFor("Tinymist WebWorker activation and diagnostic commands", async () => {
+    const commands = await vscode.commands.getCommands(true);
+    const required = [
+      "tinymist.doInspectPreviewState",
+      "tinymist.doInspectPreviewHtml",
+      "typst-preview.preview",
+      "tinymist.export",
+    ];
+    return required.every((command) => commands.includes(command)) ? commands : undefined;
+  });
+  console.log("Tinymist WebWorker commands registered in Desktop:", requiredCommands.filter((command) =>
+    ["tinymist.doInspectPreviewState", "tinymist.doInspectPreviewHtml", "typst-preview.preview", "tinymist.export"].includes(command),
+  ));
+
+  const previewHtml = await vscode.commands.executeCommand("tinymist.doInspectPreviewHtml");
+  assert(previewHtml?.isString, "The active WASM server did not return its embedded preview HTML.");
+  for (const key of ["statePlaceholder", "documentReady", "frontendReady", "browserTransport", "assetsInline"]) {
+    assert(previewHtml[key], `The packaged preview HTML is missing ${key}: ${JSON.stringify(previewHtml)}`);
+  }
 
   const launch = await vscode.commands.executeCommand("typst-preview.preview");
   assert(launch?.message === "ok" && launch.taskId, `Could not launch the installed preview: ${JSON.stringify(launch)}`);
@@ -126,7 +138,7 @@ async function run() {
   assert(pdfExport && typeof pdfExport.path === "string" && pdfExport.path,
     `PDF export returned no output path: ${JSON.stringify(pdfExport)}`);
 
-  const pdfUri = sourceUri.with({ path: pdfExport.path, query: "", fragment: "" });
+  const pdfUri = vscode.Uri.file(pdfExport.path);
   const pdfBytes = await vscode.workspace.fs.readFile(pdfUri);
   assert.equal(new TextDecoder().decode(pdfBytes.subarray(0, 5)), "%PDF-",
     `PDF export did not write a valid PDF to ${pdfUri.toString()}`);
@@ -136,7 +148,7 @@ async function run() {
   const report = {
     vscodeVersion: vscode.version,
     uiKind: vscode.env.uiKind,
-    extensionVersion: extension.packageJSON.version,
+    extensionVersion,
     taskId,
     preview: metrics,
     pdfBytes: pdfBytes.length,
