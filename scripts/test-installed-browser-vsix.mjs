@@ -51,13 +51,17 @@ if (!process.argv[2] || !fs.statSync(vsixPath, { throwIfNoEntry: false })?.isFil
 }
 
 const runnerTemp = process.env.RUNNER_TEMP || os.tmpdir();
-const testRoot = path.join(runnerTemp, "tinymist-offline-vscode");
+const expectOffline = process.env.TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE === "true";
+if (expectOffline && process.platform !== "win32") {
+  fail("The strict process-scoped offline policy is currently implemented only for Windows.");
+}
+const testRoot = path.join(runnerTemp, "tinymist-desktop-vscode");
 const userDataDir = path.join(testRoot, "user-data");
 const extensionsDir = path.join(testRoot, "extensions");
 const workspaceDir = path.join(testRoot, "workspace");
 const harnessDir = path.join(root, "scripts", "vscode-desktop-test");
-const testReportPath = path.join(workspaceDir, "tinymist-offline-test-report.json");
-const pdfPath = path.join(workspaceDir, "tinymist-offline-output.pdf");
+const testReportPath = path.join(workspaceDir, "tinymist-desktop-test-report.json");
+const pdfPath = path.join(workspaceDir, "tinymist-desktop-output.pdf");
 const firewallRule = `Tinymist VS Code offline test ${process.pid}`;
 
 fs.rmSync(testRoot, { recursive: true, force: true });
@@ -82,21 +86,22 @@ try {
     { reuseMachineInstall: true },
   );
 
-  // Block public and intranet egress for every VS Code process before the
-  // VSIX is loaded. The GitHub Actions runner is a different executable and
-  // retains its connection for artifact reporting; loopback remains usable.
-  const escapedCodePath = vscodeExecutablePath.replace(/'/g, "''");
-  const escapedRule = firewallRule.replace(/'/g, "''");
-  runPowerShell(`
-    $ErrorActionPreference = 'Stop'
-    New-NetFirewallRule -DisplayName '${escapedRule}' -Direction Outbound -Action Block -Program '${escapedCodePath}' -RemoteAddress Internet,Intranet -Profile Any | Out-Null
-    $rule = Get-NetFirewallRule -DisplayName '${escapedRule}' -ErrorAction Stop
-    if ($rule.Direction -ne 'Outbound' -or $rule.Action -ne 'Block') { throw 'The VS Code outbound firewall rule was not installed' }
-    Write-Output 'VS Code outbound Internet/Intranet access blocked; loopback preview traffic remains available.'
-  `);
-  firewallInstalled = true;
+  if (expectOffline) {
+    // Windows Firewall scopes the restriction to the VS Code executable so
+    // the GitHub Actions runner can still upload logs and test artifacts.
+    const escapedCodePath = vscodeExecutablePath.replace(/'/g, "''");
+    const escapedRule = firewallRule.replace(/'/g, "''");
+    runPowerShell(`
+      $ErrorActionPreference = 'Stop'
+      New-NetFirewallRule -DisplayName '${escapedRule}' -Direction Outbound -Action Block -Program '${escapedCodePath}' -RemoteAddress Internet,Intranet -Profile Any | Out-Null
+      $rule = Get-NetFirewallRule -DisplayName '${escapedRule}' -ErrorAction Stop
+      if ($rule.Direction -ne 'Outbound' -or $rule.Action -ne 'Block') { throw 'The VS Code outbound firewall rule was not installed' }
+      Write-Output 'VS Code outbound Internet/Intranet access blocked; loopback preview traffic remains available.'
+    `);
+    firewallInstalled = true;
+  }
 
-  console.log(`Installing compiled VSIX locally with egress blocked: ${vsixPath}`);
+  console.log(`Installing compiled VSIX locally${expectOffline ? " with VS Code egress blocked" : ""}: ${vsixPath}`);
   run(cliPath, [
     ...cliArgs,
     "--user-data-dir",
@@ -160,9 +165,10 @@ try {
       "--verbose",
     ],
     extensionTestsEnv: {
-      TINYMIST_OFFLINE_REPORT: testReportPath,
-      TINYMIST_OFFLINE_PDF: pdfPath,
+      TINYMIST_DESKTOP_TEST_REPORT: testReportPath,
+      TINYMIST_DESKTOP_TEST_PDF: pdfPath,
       TINYMIST_EXTENSION_VERSION: installedVersion,
+      TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE: expectOffline ? "true" : "false",
     },
   });
   if (testExitCode !== 0) {
@@ -179,12 +185,12 @@ try {
   }
 
   console.log("Rasterizing the PDF locally and checking for both red geometry and dark text.");
-  run(process.env.PYTHON || "python", [
+  run(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), [
     path.join(root, "scripts", "verify-offline-pdf.py"),
     pdfPath,
   ]);
 
-  console.log("Offline Windows VS Code Desktop test passed.");
+  console.log(`VS Code Desktop test passed on ${process.platform} (${process.arch})${expectOffline ? " with VS Code egress blocked" : ""}.`);
 } finally {
   if (firewallInstalled) {
     try {
