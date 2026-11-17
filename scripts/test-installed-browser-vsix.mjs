@@ -122,6 +122,23 @@ try {
     fail(`VSIX installation was not visible in the clean profile:\n${listed.stdout}\n${listed.stderr}`);
   }
   console.log(listed.stdout.trim());
+  const installedVersion = listed.stdout.match(/myriad-dreamin\\.tinymist@([^\\r\\n]+)/)?.[1];
+  if (!installedVersion) {
+    fail(`Could not determine the installed Tinymist extension version from: ${listed.stdout}`);
+  }
+  const installedManifestPath = path.join(
+    extensionsDir,
+    `myriad-dreamin.tinymist-${installedVersion}`,
+    "package.json",
+  );
+  const installedManifest = JSON.parse(fs.readFileSync(installedManifestPath, "utf8"));
+  if (installedManifest.version !== installedVersion || !installedManifest.browser || installedManifest.main) {
+    fail(`Installed extension manifest is not the expected browser-only VSIX: ${JSON.stringify({
+      version: installedManifest.version,
+      browser: installedManifest.browser,
+      main: installedManifest.main,
+    })}`);
+  }
 
   console.log("Launching desktop Extension Host with the installed VSIX (not extension-development mode).");
   testExitCode = await runTests({
@@ -142,6 +159,7 @@ try {
     extensionTestsEnv: {
       TINYMIST_OFFLINE_REPORT: testReportPath,
       TINYMIST_OFFLINE_PDF: pdfPath,
+      TINYMIST_EXTENSION_VERSION: installedVersion,
     },
   });
   if (testExitCode !== 0) {
