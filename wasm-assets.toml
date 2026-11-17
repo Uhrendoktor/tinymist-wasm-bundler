@@ -36,6 +36,7 @@ ctheorems = "2.0.0"
 glossarium = "0.5.10"
 showybox = "2.0.4"
 touying = "0.8.0"
+uniwarn = "0.1.1"
 
 # Scientific and engineering notation. Kalt requires sertyp.
 kalt = "0.1.1"
