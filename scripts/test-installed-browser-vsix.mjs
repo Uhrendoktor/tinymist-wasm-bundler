@@ -1,0 +1,207 @@
+#!/usr/bin/env node
+
+import { createRequire } from "node:module";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+
+const root = path.resolve(import.meta.dirname, "..");
+const require = createRequire(path.join(root, "editors", "vscode", "package.json"));
+const {
+  downloadAndUnzipVSCode,
+  resolveCliArgsFromVSCodeExecutablePath,
+  runTests,
+} = require("@vscode/test-electron");
+
+function fail(message) {
+  throw new Error(message);
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: "inherit",
+    ...options,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    fail(`${command} failed with exit code ${result.status ?? "unknown"}`);
+  }
+}
+
+function runPowerShell(script) {
+  run("powershell.exe", [
+    "-NoLogo",
+    "-NoProfile",
+    "-NonInteractive",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    script,
+  ]);
+}
+
+const vsixPath = path.resolve(process.argv[2] || "");
+const vscodeVersion = process.env.TINYMIST_DESKTOP_TEST_VSCODE_VERSION || "1.114.0";
+if (!process.argv[2] || !fs.statSync(vsixPath, { throwIfNoEntry: false })?.isFile()) {
+  fail("Usage: node scripts/test-installed-browser-vsix.mjs <compiled-vsix-path>");
+}
+
+const runnerTemp = process.env.RUNNER_TEMP || os.tmpdir();
+const expectOffline = process.env.TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE === "true";
+if (expectOffline && process.platform !== "win32") {
+  fail("The strict process-scoped offline policy is currently implemented only for Windows.");
+}
+const testRoot = path.join(runnerTemp, "tinymist-desktop-vscode");
+const userDataDir = path.join(testRoot, "user-data");
+const extensionsDir = path.join(testRoot, "extensions");
+const workspaceDir = path.join(testRoot, "workspace");
+const harnessDir = path.join(root, "scripts", "vscode-desktop-test");
+const testReportPath = path.join(workspaceDir, "tinymist-desktop-test-report.json");
+const pdfPath = path.join(workspaceDir, "tinymist-desktop-output.pdf");
+const firewallRule = `Tinymist VS Code offline test ${process.pid}`;
+
+fs.rmSync(testRoot, { recursive: true, force: true });
+for (const dir of [userDataDir, extensionsDir, workspaceDir]) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+let firewallInstalled = false;
+let vscodeExecutablePath;
+let testExitCode = 1;
+
+try {
+  console.log(`Preparing clean VS Code Desktop ${vscodeVersion}`);
+  vscodeExecutablePath = await downloadAndUnzipVSCode(vscodeVersion);
+  if (!fs.existsSync(vscodeExecutablePath)) {
+    fail(`VS Code executable was not downloaded: ${vscodeExecutablePath}`);
+  }
+  console.log(`VS Code executable: ${vscodeExecutablePath}`);
+
+  const [cliPath, ...cliArgs] = resolveCliArgsFromVSCodeExecutablePath(
+    vscodeExecutablePath,
+    { reuseMachineInstall: true },
+  );
+
+  if (expectOffline) {
+    // Windows Firewall scopes the restriction to the VS Code executable so
+    // the GitHub Actions runner can still upload logs and test artifacts.
+    const escapedCodePath = vscodeExecutablePath.replace(/'/g, "''");
+    const escapedRule = firewallRule.replace(/'/g, "''");
+    runPowerShell(`
+      $ErrorActionPreference = 'Stop'
+      New-NetFirewallRule -DisplayName '${escapedRule}' -Direction Outbound -Action Block -Program '${escapedCodePath}' -RemoteAddress Internet,Intranet -Profile Any | Out-Null
+      $rule = Get-NetFirewallRule -DisplayName '${escapedRule}' -ErrorAction Stop
+      if ($rule.Direction -ne 'Outbound' -or $rule.Action -ne 'Block') { throw 'The VS Code outbound firewall rule was not installed' }
+      Write-Output 'VS Code outbound Internet/Intranet access blocked; loopback preview traffic remains available.'
+    `);
+    firewallInstalled = true;
+  }
+
+  console.log(`Installing compiled VSIX locally${expectOffline ? " with VS Code egress blocked" : ""}: ${vsixPath}`);
+  run(cliPath, [
+    ...cliArgs,
+    "--user-data-dir",
+    userDataDir,
+    "--extensions-dir",
+    extensionsDir,
+    "--install-extension",
+    vsixPath,
+    "--force",
+  ], { shell: process.platform === "win32" });
+
+  const listed = spawnSync(cliPath, [
+    ...cliArgs,
+    "--user-data-dir",
+    userDataDir,
+    "--extensions-dir",
+    extensionsDir,
+    "--list-extensions",
+    "--show-versions",
+  ], { encoding: "utf8", shell: process.platform === "win32" });
+  if (listed.error) throw listed.error;
+  if (listed.status !== 0 || !listed.stdout.includes("myriad-dreamin.tinymist@")) {
+    fail(`VSIX installation was not visible in the clean profile:\n${listed.stdout}\n${listed.stderr}`);
+  }
+  console.log(listed.stdout.trim());
+  const installedLine = listed.stdout.split(/\r?\n/).find((line) =>
+    line.startsWith("myriad-dreamin.tinymist@"),
+  );
+  const installedVersion = installedLine?.slice("myriad-dreamin.tinymist@".length).trim();
+  if (!installedVersion) {
+    fail(`Could not determine the installed Tinymist extension version from: ${listed.stdout}`);
+  }
+  const installedManifestPath = path.join(
+    extensionsDir,
+    `myriad-dreamin.tinymist-${installedVersion}`,
+    "package.json",
+  );
+  const installedManifest = JSON.parse(fs.readFileSync(installedManifestPath, "utf8"));
+  if (installedManifest.version !== installedVersion || !installedManifest.browser || installedManifest.main) {
+    fail(`Installed extension manifest is not the expected browser-only VSIX: ${JSON.stringify({
+      version: installedManifest.version,
+      browser: installedManifest.browser,
+      main: installedManifest.main,
+    })}`);
+  }
+
+  console.log("Launching desktop Extension Host with the installed VSIX (not extension-development mode).");
+  testExitCode = await runTests({
+    vscodeExecutablePath,
+    extensionDevelopmentPath: harnessDir,
+    extensionTestsPath: path.join(harnessDir, "index.js"),
+    launchArgs: [
+      workspaceDir,
+      "--user-data-dir",
+      userDataDir,
+      "--extensions-dir",
+      extensionsDir,
+      "--disable-updates",
+      "--disable-workspace-trust",
+      "--disable-gpu",
+      "--verbose",
+    ],
+    extensionTestsEnv: {
+      TINYMIST_DESKTOP_TEST_REPORT: testReportPath,
+      TINYMIST_DESKTOP_TEST_PDF: pdfPath,
+      TINYMIST_EXTENSION_VERSION: installedVersion,
+      TINYMIST_DESKTOP_TEST_EXPECT_OFFLINE: expectOffline ? "true" : "false",
+    },
+  });
+  if (testExitCode !== 0) {
+    fail(`VS Code Desktop Extension Host tests failed with exit code ${testExitCode}`);
+  }
+
+  if (!fs.existsSync(testReportPath)) {
+    fail("The VS Code desktop test host did not write its result report.");
+  }
+  console.log(fs.readFileSync(testReportPath, "utf8"));
+
+  if (!fs.existsSync(pdfPath)) {
+    fail("The VS Code desktop test did not persist the exported PDF for pixel verification.");
+  }
+
+  console.log("Rasterizing the PDF locally and checking for both red geometry and dark text.");
+  run(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), [
+    path.join(root, "scripts", "verify-offline-pdf.py"),
+    pdfPath,
+  ]);
+
+  console.log(`VS Code Desktop test passed on ${process.platform} (${process.arch})${expectOffline ? " with VS Code egress blocked" : ""}.`);
+} finally {
+  if (firewallInstalled) {
+    try {
+      const escapedRule = firewallRule.replace(/'/g, "''");
+      runPowerShell(`Get-NetFirewallRule -DisplayName '${escapedRule}' -ErrorAction SilentlyContinue | Remove-NetFirewallRule`);
+    } catch (error) {
+      console.error("Could not remove the temporary VS Code firewall rule:", error);
+      process.exitCode = 1;
+    }
+  }
+  if (testExitCode !== 0) {
+    console.error(`Failure workspace and VS Code profile retained at: ${testRoot}`);
+  }
+}

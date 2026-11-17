@@ -9,6 +9,7 @@ import {
   getTargetViewColumn,
   translateExternalURL,
 } from "../util";
+import { serverPathForUri } from "../server-path";
 import {
   launchPreviewCompat,
   previewActiveCompat as previewPostActivateCompat,
@@ -474,7 +475,9 @@ export async function openPreviewInWebView({
   panelDispose,
   previewer: resolvedPreviewer,
 }: OpenPreviewInWebViewArgs): Promise<OpenedPreviewWebview> {
-  const basename = path.basename(activeEditor.document.fileName);
+  const basename = extensionState.features.web
+    ? path.posix.basename(activeEditor.document.uri.path)
+    : path.basename(activeEditor.document.fileName);
   let previewer = resolvedPreviewer;
   try {
     previewer ??= await resolvePreviewer(context);
@@ -753,7 +756,7 @@ async function launchPreviewLsp(task: LaunchInBrowserTask | LaunchInWebViewTask)
         renderedFrames: 0,
       }
     : undefined;
-  const filePath = bindDocument.uri.fsPath;
+  const filePath = serverPathForUri(bindDocument.uri, extensionState.features.web);
 
   const disposes = new DisposeList();
   registerPreviewTaskDispose(taskId, disposes);
@@ -976,7 +979,7 @@ async function launchPreviewLsp(task: LaunchInBrowserTask | LaunchInWebViewTask)
   ) {
     const scrollRequest: PanelScrollOrCursorMoveRequest = {
       event,
-      filepath: editorToReport.document.uri.fsPath,
+      filepath: serverPathForUri(editorToReport.document.uri, extensionState.features.web),
       line: editorToReport.selection.active.line,
       character: editorToReport.selection.active.character,
     };
@@ -1049,7 +1052,7 @@ async function panelSyncScrollLsp(args: any) {
 
     const scrollRequest: PanelScrollOrCursorMoveRequest = {
       event: "panelScrollTo",
-      filepath: activeEditor.document.uri.fsPath,
+      filepath: serverPathForUri(activeEditor.document.uri, extensionState.features.web),
       line: activeEditor.selection.active.line,
       character: activeEditor.selection.active.character,
     };
@@ -1183,7 +1186,7 @@ class ContentPreviewProvider implements vscode.WebviewViewProvider {
 
 function rewritePreviewAssetRoot(previewer: ResolvedPreviewer, webview: vscode.Webview): string {
   const resourceRoot =
-    previewer.localResourceRoots[0] ?? vscode.Uri.file(path.dirname(previewer.htmlUri.fsPath));
+    previewer.localResourceRoots[0] ?? vscode.Uri.joinPath(previewer.htmlUri, "..");
   const webviewAssetRoot = `${webview.asWebviewUri(resourceRoot).toString()}/typst-webview-assets`;
   return previewer.html.replace(/(?:\.\/|\/)typst-webview-assets/g, webviewAssetRoot);
 }

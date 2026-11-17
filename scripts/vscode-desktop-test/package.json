@@ -1,0 +1,10 @@
+{
+  "name": "tinymist-offline-desktop-test",
+  "displayName": "Tinymist Offline Desktop Test Harness",
+  "publisher": "tinymist-ci",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "main": "./extension.js"
+}

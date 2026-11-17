@@ -102,14 +102,31 @@ fn url_to_file_path(uri: &Url) -> PathBuf {
         .unwrap_or_else(|_| panic!("could not convert URI to path: URI: {uri:?}",))
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
+fn browser_url_path_to_path(path: &str) -> PathBuf {
+    // Url::path() is percent-encoded. Decode it before using it as a VFS path,
+    // matching the decoded Uri.path values passed by the VS Code extension.
+    let decoded = percent_encoding::percent_decode(path.as_bytes()).decode_utf8_lossy();
+    PathBuf::from(decoded.into_owned())
+}
+
 #[cfg(target_arch = "wasm32")]
 fn url_to_file_path(uri: &Url) -> PathBuf {
-    // In WASM, manually parse the URL path
-    PathBuf::from(uri.path())
+    browser_url_path_to_path(uri.path())
 }
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn browser_file_uri_paths_decode_percent_encoded_components() {
+        let uri =
+            Url::parse("file:///c%3A/Users/alice/My%20Project/Gr%C3%BC%C3%9Fe.typ").unwrap();
+
+        let path = browser_url_path_to_path(uri.path());
+
+        assert_eq!(path, Path::new("/c:/Users/alice/My Project/Grüße.typ"));
+    }
 
     #[test]
     fn test_untitled() {

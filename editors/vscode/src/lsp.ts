@@ -16,6 +16,7 @@ import {
   getSensibleTextEditorColumn,
   typstDocumentSelector,
 } from "./util";
+import { serverPathForUri, serverPathsEqual, uriForServerPath } from "./server-path";
 import type { ExportActionOpts, ExportOpts } from "./cmd.export";
 import {
   patchInjectedClientOptionsInConfig,
@@ -714,7 +715,9 @@ export class LanguageState {
         "active",
         vscode.window.activeTextEditor !== undefined,
         "documents",
-        vscode.workspace.textDocuments.map((doc) => doc.uri.fsPath),
+        vscode.workspace.textDocuments.map((doc) =>
+          serverPathForUri(doc.uri, extensionState.features.web),
+        ),
       );
 
       if (jump.start === null || jump.end === null) {
@@ -739,7 +742,7 @@ export class LanguageState {
             continue;
           }
 
-          if (tab.input.uri.fsPath === jump.filepath) {
+          if (serverPathsEqual(tab.input.uri, jump.filepath, extensionState.features.web)) {
             affiliatedColumn = group.viewColumn;
             break;
           }
@@ -750,9 +753,14 @@ export class LanguageState {
       }
 
       // open this file and show in editor
+      const sourceUri = vscode.window.activeTextEditor?.document.uri;
       const doc =
-        vscode.workspace.textDocuments.find((doc) => doc.uri.fsPath === jump.filepath) ||
-        (await vscode.workspace.openTextDocument(jump.filepath));
+        vscode.workspace.textDocuments.find((doc) =>
+          serverPathsEqual(doc.uri, jump.filepath, extensionState.features.web),
+        ) ||
+        (await vscode.workspace.openTextDocument(
+          uriForServerPath(jump.filepath, extensionState.features.web, sourceUri),
+        ));
       const col = affiliatedColumn || getSensibleTextEditorColumn();
       const editor = await vscode.window.showTextDocument(doc, col);
       const startPosition = new vscode.Position(jump.start[0], jump.start[1]);
