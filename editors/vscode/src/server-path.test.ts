@@ -10,12 +10,7 @@ vi.mock("vscode", () => ({
 import * as vscode from "vscode";
 import { serverPathForUri, serverPathsEqual, uriForServerPath } from "./server-path";
 
-function mockUri(
-  scheme: string,
-  path: string,
-  authority = "",
-  fsPath = path,
-): vscode.Uri {
+function mockUri(scheme: string, path: string, authority = "", fsPath = path): vscode.Uri {
   return {
     scheme,
     path,
@@ -35,7 +30,12 @@ function setWorkspaceFolders(folders: vscode.WorkspaceFolder[]) {
 beforeEach(() => setWorkspaceFolders([]));
 
 test("uses URI paths for WASM on Windows instead of host-specific fsPath", () => {
-  const uri = mockUri("file", "/c:/Users/alice/project/main.typ", "", "c:\\Users\\alice\\project\\main.typ");
+  const uri = mockUri(
+    "file",
+    "/c:/Users/alice/project/main.typ",
+    "",
+    "c:\\Users\\alice\\project\\main.typ",
+  );
 
   expect(serverPathForUri(uri, true)).toBe("/c:/Users/alice/project/main.typ");
   expect(serverPathForUri(uri, false)).toBe("c:\\Users\\alice\\project\\main.typ");
