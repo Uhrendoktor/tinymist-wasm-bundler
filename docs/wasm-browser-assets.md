@@ -136,17 +136,39 @@ node scripts/build-browser.mjs \
   --output ./dist/tinymist-web-custom.vsix
 ```
 
-On Linux x86_64 the script installs SHA-256-verified pinned Yarn and
-wasm-pack tools into your user cache. On macOS and other POSIX host
-architectures it installs Yarn and builds the pinned wasm-pack release with
-Cargo. On Windows, install Yarn 1.22.22 and wasm-pack 0.15.1 yourself and make
-both available on PATH; the script checks those exact versions before building.
+The build-tool bootstrap differs by host:
+
+- **Linux x86_64:** the script installs pinned Yarn 1.22.22 and downloads the
+  pinned wasm-pack 0.15.1 Linux binary after checking its SHA-256 checksum.
+- **macOS and other POSIX hosts:** the script installs pinned Yarn 1.22.22 and
+  compiles the pinned wasm-pack 0.15.1 release from source with Cargo.
+- **Windows:** the script does not run the POSIX bootstrap. Install the pinned
+  tools yourself and make them available on PATH, for example:
+
+  ```powershell
+  npm install --global yarn@1.22.22
+  cargo install wasm-pack --version 0.15.1 --locked
+  ```
+
+  The build script checks that both commands report the required exact
+  versions before continuing. Rust/rustup, Node.js 20.11 or newer (Node.js 24
+  is used in CI), npm, and the usual native build tools are also required.
+
+All hosts compile the same `wasm32-unknown-unknown` browser target. The build
+host does not select a Windows, Linux, or macOS Tinymist executable: the
+result is a browser/WASM VSIX intended to run in VS Code Desktop on all three
+operating systems as well as in VS Code for the Web. The CI builds one
+canonical VSIX on Linux, then installs that exact artifact into clean VS Code
+Desktop profiles on Linux, Windows, and macOS. The Windows leg additionally
+blocks Internet/Intranet egress for the VS Code executable while preserving
+loopback preview communication; Linux and macOS legs currently verify the
+desktop runtime, preview, two-page rendering, and PDF export without applying
+that OS-level network block.
 
 The script installs the repository's JavaScript dependencies, adds the
 `wasm32-unknown-unknown` Rust target if it is missing, and builds/packages the
 browser VSIX. It does not need a fork, GitHub token, workflow dispatch, or
-self-hosted runner. Rust/rustup, Node.js 20.11 or newer (Node.js 24 is used in
-CI), npm, and the usual native build tools must be installed.
+self-hosted runner.
 
 The output argument is optional. Without it, the VSIX is written to the normal
 `dist/tinymist-web-<version>.vsix` path.
