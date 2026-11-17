@@ -313,6 +313,7 @@ jobs:
         run: |
           cargo fmt --all
           cargo fmt --check --all
+          mkdir -p target
           git diff -- crates/tinymist-project/src/compiler.rs > target/rustfmt-compiler.patch
           cat target/rustfmt-compiler.patch
 
