@@ -69,10 +69,13 @@ export function uriForServerPath(
 }
 
 function isWindowsFileUri(uri: vscode.Uri): boolean {
-  return (
-    uri.scheme === "file" &&
-    (/^\\/[a-z]:\\//i.test(uri.path) || uri.fsPath.includes("\\\\"))
-  );
+  const hasDriveLetter =
+    uri.path.length >= 4 &&
+    uri.path[0] === "/" &&
+    /^[a-z]$/i.test(uri.path[1]) &&
+    uri.path[2] === ":" &&
+    uri.path[3] === "/";
+  return uri.scheme === "file" && (hasDriveLetter || uri.fsPath.includes("\\"));
 }
 
 function normalizePath(value: string): string {
@@ -83,7 +86,9 @@ function normalizePath(value: string): string {
 function isWithinFolder(candidate: string, folderPath: string, caseInsensitive: boolean): boolean {
   const normalizedCandidate = normalizePath(candidate);
   const normalizedRoot = normalizePath(folderPath);
-  const comparableCandidate = caseInsensitive ? normalizedCandidate.toLowerCase() : normalizedCandidate;
+  const comparableCandidate = caseInsensitive
+    ? normalizedCandidate.toLowerCase()
+    : normalizedCandidate;
   const comparableRoot = caseInsensitive ? normalizedRoot.toLowerCase() : normalizedRoot;
   return (
     comparableCandidate === comparableRoot ||
