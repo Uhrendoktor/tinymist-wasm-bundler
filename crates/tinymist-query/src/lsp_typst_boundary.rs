@@ -125,10 +125,7 @@ mod test {
 
         let path = browser_url_path_to_path(uri.path());
 
-        assert_eq!(
-            path,
-            Path::new("/c:/Users/alice/My Project/Grüße.typ")
-        );
+        assert_eq!(path, Path::new("/c:/Users/alice/My Project/Grüße.typ"));
     }
 
     #[test]
