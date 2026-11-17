@@ -68,7 +68,11 @@ async function run() {
     "#set text(fill: black, size: 12pt)",
     "#rect(width: 110pt, height: 38pt, fill: red)",
     "= WINDOWS_OFFLINE_TINYMIST_TEST",
-    "Visible black text must appear next to the red rectangle.",
+    "First-page black text must appear next to the red rectangle.",
+    "#pagebreak()",
+    "= WINDOWS_OFFLINE_TINYMIST_PAGEBREAK_SECOND_PAGE",
+    "Second-page content verifies that pagebreak creates a second page.",
+    "#rect(width: 80pt, height: 25pt, fill: blue)",
     "",
   ].join("\n");
   const sourceUri = vscode.Uri.joinPath(workspace, "offline-smoke.typ");
@@ -117,7 +121,8 @@ async function run() {
 
   const metrics = rendered.renderMetrics;
   console.log("Desktop preview metrics:", JSON.stringify(metrics));
-  assert(metrics.pageCount > 0, `Preview has no page: ${JSON.stringify(rendered)}`);
+  assert.equal(metrics.pageCount, 2,
+    `Preview did not honor #pagebreak() as a second page: ${JSON.stringify(metrics)}`);
   assert(metrics.svgCount > 0 && metrics.visibleSvgCount > 0, `Preview did not create a visible SVG: ${JSON.stringify(metrics)}`);
   assert(metrics.nonWhitePaintElementCount > 0, `Preview contains no non-white painted geometry: ${JSON.stringify(metrics)}`);
   assert(metrics.paintedGlyphElementCount > 0 && metrics.darkTextGlyphElementCount > 0,
